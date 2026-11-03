@@ -1,43 +1,140 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>KGBV Session Tools</title>
+<title>KGBV Session Tools – by Manviya Rawat</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
-body{font-family:Arial,sans-serif;background:#f4f6fb;margin:0;padding:40px 20px;color:#202124}
-.wrap{max-width:720px;margin:auto}
-h1{color:#1a3c6e;font-size:28px;margin:0 0 6px}
-p.sub{color:#5f6368;margin:0 0 28px}
-a.tool{display:block;background:#fff;border-radius:12px;padding:22px 26px;margin-bottom:16px;
-  box-shadow:0 2px 10px rgba(0,0,0,.07);text-decoration:none;color:#202124;border-left:6px solid #1a73e8}
-a.tool:hover{box-shadow:0 4px 16px rgba(0,0,0,.14)}
-a.tool h2{margin:0 0 6px;font-size:20px;color:#1a73e8}
-a.tool span{color:#5f6368;font-size:14px}
-.foot{color:#9aa0a6;font-size:12px;margin-top:24px}
+:root{
+  --ink:#0f172a; --muted:#64748b; --line:#e2e8f0; --card:#ffffff;
+  --blue:#2563eb; --violet:#7c3aed; --teal:#0d9488; --amber:#f59e0b;
+}
+*{box-sizing:border-box}
+body{margin:0;font-family:'Inter',Arial,sans-serif;color:var(--ink);background:#f8fafc;
+  background-image:
+    radial-gradient(900px 500px at 10% -10%, rgba(37,99,235,.14), transparent 60%),
+    radial-gradient(800px 500px at 100% 0%, rgba(124,58,237,.12), transparent 60%);
+  min-height:100vh}
+a{color:inherit}
+
+/* top bar */
+.nav{position:sticky;top:0;z-index:10;backdrop-filter:blur(12px);background:rgba(248,250,252,.75);
+  border-bottom:1px solid rgba(226,232,240,.8)}
+.nav-in{max-width:1080px;margin:auto;padding:14px 24px;display:flex;align-items:center;justify-content:space-between}
+.brand{display:flex;align-items:center;gap:10px;font-weight:800;font-size:17px;letter-spacing:-.2px}
+.logo{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;color:#fff;font-size:17px;
+  background:linear-gradient(135deg,var(--blue),var(--violet));box-shadow:0 6px 16px rgba(79,70,229,.35)}
+.maker{font-size:13px;color:var(--muted)}
+.maker b{color:var(--ink)}
+
+/* hero */
+.hero{max-width:1080px;margin:auto;padding:64px 24px 30px;text-align:center}
+.pill{display:inline-flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:var(--violet);
+  background:rgba(124,58,237,.08);border:1px solid rgba(124,58,237,.18);padding:6px 14px;border-radius:999px}
+h1{font-size:clamp(34px,5vw,54px);line-height:1.08;letter-spacing:-1.5px;margin:18px 0 14px;font-weight:800}
+h1 .grad{background:linear-gradient(90deg,var(--blue),var(--violet));-webkit-background-clip:text;background-clip:text;color:transparent}
+.lead{font-size:18px;color:var(--muted);max-width:620px;margin:0 auto 26px;line-height:1.6}
+.chips{display:flex;flex-wrap:wrap;gap:10px;justify-content:center}
+.chip{font-size:13px;font-weight:500;background:#fff;border:1px solid var(--line);padding:8px 14px;border-radius:999px;
+  box-shadow:0 1px 2px rgba(15,23,42,.04)}
+
+/* tool cards */
+.grid{max-width:1080px;margin:auto;padding:30px 24px 10px;display:grid;grid-template-columns:repeat(3,1fr);gap:22px}
+.card{position:relative;display:flex;flex-direction:column;background:var(--card);border:1px solid var(--line);
+  border-radius:20px;padding:26px;text-decoration:none;
+  box-shadow:0 1px 2px rgba(15,23,42,.04),0 8px 24px rgba(15,23,42,.06);
+  transition:transform .2s ease, box-shadow .2s ease, border-color .2s ease}
+.card:hover{transform:translateY(-6px);border-color:rgba(37,99,235,.35);
+  box-shadow:0 2px 4px rgba(15,23,42,.05),0 22px 44px rgba(37,99,235,.16)}
+.icon{width:52px;height:52px;border-radius:14px;display:grid;place-items:center;font-size:24px;color:#fff;margin-bottom:18px}
+.i1{background:linear-gradient(135deg,#10b981,var(--teal));box-shadow:0 8px 18px rgba(13,148,136,.3)}
+.i2{background:linear-gradient(135deg,#3b82f6,var(--blue));box-shadow:0 8px 18px rgba(37,99,235,.3)}
+.i3{background:linear-gradient(135deg,#a855f7,var(--violet));box-shadow:0 8px 18px rgba(124,58,237,.3)}
+.badge{position:absolute;top:22px;right:22px;font-size:11px;font-weight:700;letter-spacing:.3px;text-transform:uppercase;
+  padding:5px 10px;border-radius:999px;background:#f1f5f9;color:var(--muted)}
+.card h2{font-size:20px;margin:0 0 8px;letter-spacing:-.3px}
+.card p{color:var(--muted);font-size:14.5px;line-height:1.6;margin:0 0 22px;flex:1}
+.open{display:inline-flex;align-items:center;gap:8px;font-weight:600;font-size:14px;color:var(--blue)}
+.open .arr{transition:transform .2s ease}
+.card:hover .arr{transform:translateX(4px)}
+
+/* how it works */
+.how{max-width:1080px;margin:40px auto 0;padding:0 24px}
+.how-box{background:linear-gradient(135deg,#0f172a,#1e1b4b);color:#fff;border-radius:22px;padding:34px;
+  display:grid;grid-template-columns:repeat(3,1fr);gap:26px;box-shadow:0 20px 40px rgba(15,23,42,.25)}
+.step .n{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;font-weight:800;
+  background:rgba(255,255,255,.12);margin-bottom:12px}
+.step h3{margin:0 0 6px;font-size:16px}
+.step p{margin:0;color:#cbd5e1;font-size:14px;line-height:1.55}
+
+/* footer */
+footer{max-width:1080px;margin:auto;padding:40px 24px 50px;text-align:center;color:var(--muted);font-size:14px}
+.credit{display:inline-flex;align-items:center;gap:10px;background:#fff;border:1px solid var(--line);
+  padding:10px 18px;border-radius:999px;box-shadow:0 1px 2px rgba(15,23,42,.04)}
+.av{width:28px;height:28px;border-radius:50%;display:grid;place-items:center;color:#fff;font-weight:700;font-size:13px;
+  background:linear-gradient(135deg,var(--blue),var(--violet))}
+.credit b{color:var(--ink)}
+.small{margin-top:14px;font-size:12px;color:#94a3b8}
+
+@media (max-width:900px){ .grid{grid-template-columns:1fr} .how-box{grid-template-columns:1fr} .maker{display:none} }
 </style>
 </head>
 <body>
-<div class="wrap">
-  <h1>KGBV Session Tools</h1>
-  <p class="sub">Choose a tool. Your files are processed only in your browser – nothing is uploaded.</p>
 
-  <a class="tool" href="sheet-maker.html">
-    <h2>✅ KGBV Sheet Maker</h2>
-    <span>Upload the session report → download the Attended / Not attended sheet for every state.</span>
+<div class="nav"><div class="nav-in">
+  <div class="brand"><div class="logo">K</div>KGBV Tools</div>
+  <div class="maker">Created by <b>Manviya Rawat</b></div>
+</div></div>
+
+<section class="hero">
+  <span class="pill">✨ Session reporting, automated</span>
+  <h1>Hours of work,<br><span class="grad">done in minutes.</span></h1>
+  <p class="lead">Three simple tools that turn session reports and exports into ready-to-share sheets and documents – in the exact format you already use.</p>
+  <div class="chips">
+    <span class="chip">🔒 Private – files never leave your browser</span>
+    <span class="chip">⚡ One click, no formulas</span>
+    <span class="chip">📄 Excel &amp; Word ready</span>
+  </div>
+</section>
+
+<section class="grid">
+  <a class="card" href="sheet-maker.html">
+    <span class="badge">Excel</span>
+    <div class="icon i1">✅</div>
+    <h2>KGBV Sheet Maker</h2>
+    <p>Upload the session report and download the Attended / Not attended sheet for every state – sorted, numbered and formatted.</p>
+    <span class="open">Open tool <span class="arr">→</span></span>
   </a>
 
-  <a class="tool" href="tracker.html">
-    <h2>📊 Tracker Rows Maker</h2>
-    <span>Upload the state-wise export → copy all 9 rows (Total + states) into the tracker sheet in one paste.</span>
+  <a class="card" href="tracker.html">
+    <span class="badge">Copy &amp; paste</span>
+    <div class="icon i2">📊</div>
+    <h2>Tracker Rows Maker</h2>
+    <p>Upload the state-wise export and copy all 9 rows (Total + states) into the tracker sheet with a single paste.</p>
+    <span class="open">Open tool <span class="arr">→</span></span>
   </a>
 
-  <a class="tool" href="report-maker.html">
-    <h2>📝 Session Report Maker</h2>
-    <span>Fill session details, notes, images and polls → download the Internal Report as a Word file for Google Docs.</span>
+  <a class="card" href="report-maker.html">
+    <span class="badge">Word</span>
+    <div class="icon i3">📝</div>
+    <h2>Session Report Maker</h2>
+    <p>Fill in session details, notes, snippets and polls – get the Internal Report as a Word file, ready for Google Docs.</p>
+    <span class="open">Open tool <span class="arr">→</span></span>
   </a>
+</section>
 
-  <p class="foot">Tip: bookmark this page.</p>
-</div>
+<section class="how"><div class="how-box">
+  <div class="step"><div class="n">1</div><h3>Choose a tool</h3><p>Pick the task you need – sheet, tracker rows or report.</p></div>
+  <div class="step"><div class="n">2</div><h3>Add your file</h3><p>Upload the report or export. Everything is processed on your own computer.</p></div>
+  <div class="step"><div class="n">3</div><h3>Get the result</h3><p>Download the file or copy the rows – in your existing format, ready to share.</p></div>
+</div></section>
+
+<footer>
+  <div class="credit"><div class="av">M</div>Designed &amp; built by <b>Manviya Rawat</b></div>
+  <div class="small">Tip: bookmark this page for quick access.</div>
+</footer>
+
 </body>
 </html>
