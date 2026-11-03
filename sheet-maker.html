@@ -2,142 +2,273 @@
 <html>
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>KGBV Session Sheet Maker</title>
 <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js"></script>
 <style>
-body{font-family:Arial,sans-serif;background:#f4f6fb;margin:0;padding:30px}
-.card{max-width:640px;margin:auto;background:#fff;border-radius:12px;padding:28px;box-shadow:0 2px 10px rgba(0,0,0,.08)}
+body{font-family:Arial,sans-serif;background:#f4f6fb;margin:0;padding:30px 16px}
+.card{max-width:720px;margin:0 auto 18px;background:#fff;border-radius:12px;padding:24px 28px;box-shadow:0 2px 10px rgba(0,0,0,.08)}
 h1{font-size:23px;margin:0 0 6px;color:#1a3c6e}
-p.sub{color:#666;margin:0 0 20px}
-label{display:block;font-weight:bold;margin:18px 0 6px}
+h2{font-size:17px;margin:0 0 12px;color:#1a3c6e}
+.step{display:inline-block;background:#1a73e8;color:#fff;border-radius:50%;width:24px;height:24px;text-align:center;line-height:24px;margin-right:8px;font-size:13px}
+p.sub{color:#666;margin:0}
+label{display:block;font-weight:bold;margin:14px 0 6px}
 input[type=text]{width:100%;padding:10px;border:1px solid #ccc;border-radius:6px;font-size:15px;box-sizing:border-box}
-button{margin-top:26px;width:100%;padding:14px;font-size:17px;background:#1a73e8;color:#fff;border:0;border-radius:8px;cursor:pointer}
-button:hover{background:#155ec4}
-#msg{margin-top:22px}
+.opt{display:flex;align-items:center;gap:10px;font-weight:bold;font-size:15px;margin:6px 0;cursor:pointer}
+.opt input{width:18px;height:18px}
 table{width:100%;border-collapse:collapse;margin-top:10px;font-size:14px}
-th,td{border:1px solid #ddd;padding:6px 8px;text-align:left}
+th,td{border:1px solid #e3e3e3;padding:7px 8px;text-align:left}
 th{background:#eef3fb}
+td.c{text-align:center}
+.tag{font-size:11px;font-weight:bold;padding:2px 7px;border-radius:10px}
+.xl{background:#e6f4ea;color:#137333}.pdf{background:#fce8e6;color:#c5221f}
+button{padding:10px 16px;font-size:15px;background:#1a73e8;color:#fff;border:0;border-radius:8px;cursor:pointer}
+button:hover{background:#155ec4}
+button.sm{padding:5px 10px;font-size:13px;background:#e8f0fe;color:#1a73e8}
+button.big{width:100%;padding:15px;font-size:18px;margin-top:6px}
+button:disabled{background:#c5cbd3;cursor:not-allowed}
+.links{font-size:13px;margin-top:8px}
+.links a{color:#1a73e8;cursor:pointer;margin-right:14px}
 .warn{color:#b00020;font-size:14px}
-.ok{color:#137333;font-weight:bold;font-size:16px}
+.ok{color:#137333;font-weight:bold}
+.note{color:#5f6368;font-size:13px}
+#hidden{display:none}
 </style>
 </head>
 <body>
+
 <div class="card">
   <h1>KGBV Session Sheet Maker</h1>
-  <p class="sub">Choose the session report → get the Attended / Not attended sheet for every state.</p>
-
-  <label>1. Choose the session report file (Excel)</label>
-  <input type="file" id="file" accept=".xlsx,.xls">
-
-  <label>2. New file name</label>
-  <input type="text" id="fname" placeholder="e.g. 26. Diwali Special - Flexagons">
-
-  <label>3. Session date</label>
-  <input type="text" id="date" placeholder="e.g. October 30 2026">
-
-  <button id="go">Make my sheet</button>
-  <div id="msg"></div>
+  <p class="sub">Choose the report → pick what you want: the full sheet, state-wise files, or both. Files download one by one.</p>
 </div>
+
+<div class="card">
+  <h2><span class="step">1</span>Choose the session report (Excel)</h2>
+  <input type="file" id="file" accept=".xlsx,.xls">
+  <div id="fileMsg"></div>
+</div>
+
+<div class="card">
+  <h2><span class="step">2</span>File name and date</h2>
+  <label>File name</label>
+  <input type="text" id="fname" placeholder="e.g. 26. Diwali Special - Flexagons">
+  <label>Session date</label>
+  <input type="text" id="date" placeholder="e.g. October 30 2026">
+  <p class="note">Files will be named like: <b id="namePreview">Session 26. Diwali Special - Flexagons - Punjab.pdf</b></p>
+</div>
+
+<div class="card" id="hidden">
+  <h2><span class="step">3</span>What do you want to download?</h2>
+
+  <label class="opt"><input type="checkbox" id="optFull" checked> Full sheet – all states in one Excel file</label>
+  <label class="opt"><input type="checkbox" id="optStates" checked> State-wise files</label>
+  <div class="links"><a id="selAll">Select all states</a><a id="selNone">Clear all states</a></div>
+
+  <table id="stateTable"></table>
+  <label class="opt" style="font-weight:normal;font-size:14px;margin-top:12px"><input type="checkbox" id="grid" checked> Show gridlines in PDFs</label>
+
+  <button class="big" id="goBtn">Download selected</button>
+  <p class="note">If your browser asks <b>"Download multiple files?"</b>, click <b>Allow</b>.</p>
+  <div id="dlMsg"></div>
+</div>
+
+<p style="text-align:center;color:#5f6368;font-size:13px;margin:24px 0 10px">Created by <b>Manviya Rawat</b> · <a href="index.html" style="color:#1a73e8">← All tools</a></p>
 
 <script>
 const HEAD_ATTENDED = 'KGBVs who attended session';
 const HEAD_NOT = 'KGBVs who did not attend session';
 const GREEN = 'B6D7A8';
+const EXCEL_STATES = ['gujarat'];      // these states get Excel; all others get PDF
 
+const $ = id => document.getElementById(id);
 const clean = s => String(s == null ? '' : s).replace(/\s+/g, ' ').trim();
+const safe = s => s.replace(/[\\/:*?"<>|]/g, '');
 const byName = (a, b) => a.localeCompare(b, 'en', { sensitivity: 'base', numeric: true });
-const msg = document.getElementById('msg');
-const warn = t => msg.innerHTML = '<p class="warn">' + t + '</p>';
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const isExcel = st => EXCEL_STATES.includes(st.toLowerCase());
+let STATES = [];   // [{name, yes:[], no:[]}]
 
-const ST_TITLE = { font: { name: 'Arial', sz: 12, bold: true },
-                   fill: { patternType: 'solid', fgColor: { rgb: GREEN } },
+/* ---------- styles for Excel ---------- */
+const ST_TITLE = { font: { name: 'Arial', sz: 12, bold: true }, fill: { patternType: 'solid', fgColor: { rgb: GREEN } },
                    alignment: { horizontal: 'center', vertical: 'center' } };
-const ST_HEAD  = { font: { name: 'Arial', sz: 12, bold: true, underline: true },
-                   alignment: { horizontal: 'center', vertical: 'center' } };
+const ST_HEAD  = { font: { name: 'Arial', sz: 12, bold: true, underline: true }, alignment: { horizontal: 'center', vertical: 'center' } };
 const ST_NUM   = { font: { name: 'Arial', sz: 12 }, alignment: { horizontal: 'center' } };
 const ST_TEXT  = { font: { name: 'Arial', sz: 12 }, alignment: { horizontal: 'left' } };
 
-function styleSheet(ws, rowCount) {
-  for (let r = 0; r < rowCount; r++) {
-    for (let c = 0; c < 4; c++) {
-      const addr = XLSX.utils.encode_cell({ r, c });
-      if (!ws[addr]) ws[addr] = { t: 's', v: '' };
-      if (r === 0) ws[addr].s = ST_TITLE;
-      else if (r === 1) ws[addr].s = ST_HEAD;
-      else ws[addr].s = (c === 0) ? ST_NUM : ST_TEXT;
-    }
-  }
-  ws['!merges'] = [{ s: { r: 0, c: 1 }, e: { r: 0, c: 3 } }];   // B1:D1 merged
-  ws['!cols'] = [{ wch: 20 }, { wch: 48 }, { wch: 10 }, { wch: 42 }];
+/* ---------- name preview ---------- */
+function names() {
+  const fname = clean($('fname').value);
+  return { fname, base: 'Session ' + safe(fname), title: fname.replace(/^\s*\d+\s*[.\-)]\s*/, ''), date: clean($('date').value) };
 }
+$('fname').addEventListener('input', () => {
+  const n = names();
+  $('namePreview').textContent = (n.fname ? n.base : 'Session 26. Diwali Special - Flexagons') + ' - Punjab.pdf';
+});
 
-document.getElementById('go').onclick = async () => {
-  const f = document.getElementById('file').files[0];
-  const fname = clean(document.getElementById('fname').value);
-  const date = clean(document.getElementById('date').value);
-  if (typeof XLSX === 'undefined') return warn('Page did not load fully. Check your internet and refresh the page.');
-  if (!f) return warn('Please choose the report file first (step 1).');
-  if (!fname) return warn('Please type the new file name (step 2).');
-  if (!date) return warn('Please type the session date (step 3).');
-
-  const title = fname.replace(/^\s*\d+\s*[.\-)]\s*/, '');
+/* ---------- step 1: read the report as soon as it is chosen ---------- */
+$('file').onchange = async e => {
+  const f = e.target.files[0]; if (!f) return;
+  $('fileMsg').innerHTML = '<p class="note">Reading…</p>';
+  if (typeof XLSX === 'undefined') { $('fileMsg').innerHTML = '<p class="warn">Page did not load fully. Check your internet and press Ctrl+F5.</p>'; return; }
   let wb;
   try { wb = XLSX.read(new Uint8Array(await f.arrayBuffer()), { type: 'array' }); }
-  catch (e) { return warn('Could not read this file. Please choose the Excel (.xlsx) report.'); }
+  catch (err) { $('fileMsg').innerHTML = '<p class="warn">Could not read this file. Please choose the Excel (.xlsx) session report.</p>'; return; }
 
-  const out = XLSX.utils.book_new();
-  const summary = [], problems = [];
-
+  STATES = []; const problems = [];
   wb.SheetNames.forEach(state => {
     const data = XLSX.utils.sheet_to_json(wb.Sheets[state], { header: 1, raw: false, defval: '' });
     const h = data.findIndex(r => r.some(c => clean(c).toLowerCase() === 'district'));
-    if (h < 0) { problems.push(state + ': no "District" column, tab skipped'); return; }
+    if (h < 0) { problems.push(state + ': no "District" column – tab skipped'); return; }
     const head = data[h].map(c => clean(c).toLowerCase());
     const d = head.indexOf('district'), s = head.indexOf('school name'), p = head.indexOf('participated');
-    if (s < 0 || p < 0) { problems.push(state + ': "School Name" or "Participated" column missing, tab skipped'); return; }
-
+    if (s < 0 || p < 0) { problems.push(state + ': "School Name" or "Participated" column missing – tab skipped'); return; }
     const yes = [], no = [], seen = new Set();
     data.slice(h + 1).forEach(r => {
       if (!clean(r[s])) return;
       if (!clean(r[d])) problems.push(state + ': school "' + clean(r[s]) + '" has no district');
-      const name = clean(r[d] + ' ' + r[s]);
-      const key = name.toLowerCase();
+      const name = clean(r[d] + ' ' + r[s]), key = name.toLowerCase();
       if (seen.has(key)) problems.push(state + ': ' + name + ' appears more than once in the report');
       seen.add(key);
       const v = clean(r[p]).toLowerCase();
       if (v === 'yes') yes.push(name);
-      else {
-        no.push(name);
-        if (v !== 'no') problems.push(state + ': ' + name + ' has Participated = "' + clean(r[p]) + '" (put in Not attended)');
-      }
+      else { no.push(name); if (v !== 'no') problems.push(state + ': ' + name + ' has Participated = "' + clean(r[p]) + '" (put in Not attended)'); }
     });
     yes.sort(byName); no.sort(byName);
-
-    const total = yes.length + no.length;
-    const rows = [
-      ['Total Schools- ' + total, 'Date : ' + date + ', Session - ' + title, '', ''],
-      ['Sr. No', HEAD_ATTENDED, '', HEAD_NOT]
-    ];
-    for (let i = 0; i < Math.max(yes.length, no.length); i++) rows.push([i + 1, yes[i] || '', '', no[i] || '']);
-
-    const ws = XLSX.utils.aoa_to_sheet(rows);
-    styleSheet(ws, rows.length);
-    XLSX.utils.book_append_sheet(out, ws, state.slice(0, 31));
-    summary.push([state, total, yes.length, no.length]);
+    STATES.push({ name: state, yes, no });
   });
 
-  if (!out.SheetNames.length) return warn('No usable data found. Is this the session report file?');
+  if (!STATES.length) { $('fileMsg').innerHTML = '<p class="warn">No usable data found. Is this the session report file?</p>'; return; }
+  $('fileMsg').innerHTML = '<p class="ok">✔ Report read: ' + STATES.length + ' states found.</p>'
+    + (problems.length ? '<p class="warn"><b>Please check:</b><br>' + problems.join('<br>') + '</p>' : '<p class="ok">No problems found in the report.</p>');
+  drawTable();
+  $('hidden').style.display = 'block';
+};
 
-  const outName = fname.replace(/[\\/:*?"<>|]/g, '') + '.xlsx';
-  XLSX.writeFile(out, outName);
+/* ---------- step 3: state table with tick-boxes and single buttons ---------- */
+function drawTable() {
+  let h = '<tr><th class="c">✔</th><th>State</th><th class="c">File</th><th class="c">Total</th><th class="c">Attended</th><th class="c">Not attended</th><th class="c">Single</th></tr>';
+  STATES.forEach((st, i) => {
+    h += '<tr><td class="c"><input type="checkbox" class="stChk" data-i="' + i + '" checked></td><td>' + st.name + '</td>'
+      + '<td class="c">' + (isExcel(st.name) ? '<span class="tag xl">EXCEL</span>' : '<span class="tag pdf">PDF</span>') + '</td>'
+      + '<td class="c">' + (st.yes.length + st.no.length) + '</td><td class="c">' + st.yes.length + '</td><td class="c">' + st.no.length + '</td>'
+      + '<td class="c"><button class="sm oneBtn" data-i="' + i + '">Download</button></td></tr>';
+  });
+  $('stateTable').innerHTML = h;
+  document.querySelectorAll('.oneBtn').forEach(b => b.onclick = async () => {
+    if (!checkNames()) return;
+    try { downloadState(STATES[+b.dataset.i]); $('dlMsg').innerHTML = '<p class="ok">✔ Downloaded ' + STATES[+b.dataset.i].name + '.</p>'; }
+    catch (err) { showErr(err); }
+  });
+}
+$('selAll').onclick = () => document.querySelectorAll('.stChk').forEach(c => c.checked = true);
+$('selNone').onclick = () => document.querySelectorAll('.stChk').forEach(c => c.checked = false);
+$('optStates').onchange = () => document.querySelectorAll('.stChk').forEach(c => c.checked = $('optStates').checked);
 
-  let html = '<p class="ok">✔ Done! "' + outName + '" has been downloaded (check your Downloads folder).</p>'
-    + '<table><tr><th>State</th><th>Total</th><th>Attended</th><th>Not attended</th></tr>';
-  summary.forEach(r => html += '<tr><td>' + r.join('</td><td>') + '</td></tr>');
-  html += '</table>';
-  if (problems.length) html += '<p class="warn"><b>Please check:</b><br>' + problems.join('<br>') + '</p>';
-  else html += '<p class="ok">No problems found in the report.</p>';
-  msg.innerHTML = html;
+/* ---------- builders ---------- */
+function buildRows(st) {
+  const n = names(), total = st.yes.length + st.no.length;
+  const rows = [['Total Schools- ' + total, 'Date : ' + n.date + ', Session - ' + n.title, '', ''], ['Sr. No', HEAD_ATTENDED, '', HEAD_NOT]];
+  for (let i = 0; i < Math.max(st.yes.length, st.no.length); i++) rows.push([i + 1, st.yes[i] || '', '', st.no[i] || '']);
+  return rows;
+}
+function buildSheet(rows) {
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  for (let r = 0; r < rows.length; r++) for (let c = 0; c < 4; c++) {
+    const a = XLSX.utils.encode_cell({ r, c });
+    if (!ws[a]) ws[a] = { t: 's', v: '' };
+    ws[a].s = r === 0 ? ST_TITLE : r === 1 ? ST_HEAD : (c === 0 ? ST_NUM : ST_TEXT);
+  }
+  ws['!merges'] = [{ s: { r: 0, c: 1 }, e: { r: 0, c: 3 } }];
+  ws['!cols'] = [{ wch: 20 }, { wch: 48 }, { wch: 10 }, { wch: 42 }];
+  return ws;
+}
+function saveBlob(blob, name) {
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+}
+function saveWorkbook(wb, name) {
+  const data = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+  saveBlob(new Blob([data], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), name);
+}
+function makePdfBlob(rows, grid) {
+  if (!window.jspdf || !window.jspdf.jsPDF) throw new Error('PDF tool did not load – check internet and press Ctrl+F5');
+  const doc = new window.jspdf.jsPDF({ unit: 'pt', format: 'a4', orientation: 'portrait' });
+  if (typeof doc.autoTable !== 'function') throw new Error('PDF table tool did not load – check internet and press Ctrl+F5');
+  const body = rows.map((r, i) => i === 0
+    ? [{ content: String(r[0]) }, { content: String(r[1]), colSpan: 3 }]
+    : r.map(c => (c === '' || c == null) ? '' : String(c)));
+  doc.autoTable({
+    body, theme: 'plain',
+    margin: { top: 30, left: 30, right: 30, bottom: 30 },
+    styles: { font: 'helvetica', fontSize: 10, cellPadding: { top: 3, bottom: 3, left: 4, right: 4 }, textColor: 20,
+              lineColor: [200, 200, 200], lineWidth: grid ? 0.5 : 0, valign: 'middle' },
+    columnStyles: { 0: { cellWidth: 45, halign: 'center' }, 1: { cellWidth: 235 }, 2: { cellWidth: 15 }, 3: { cellWidth: 240 } },
+    didParseCell: d => {
+      if (d.section !== 'body') return;
+      if (d.row.index === 0) { d.cell.styles.fillColor = [182, 215, 168]; d.cell.styles.fontStyle = 'bold'; d.cell.styles.halign = 'center'; d.cell.styles.fontSize = 11; }
+      if (d.row.index === 1) { d.cell.styles.fontStyle = 'bold'; d.cell.styles.halign = 'center'; }
+    },
+    didDrawCell: d => {
+      if (d.section !== 'body' || d.row.index !== 1) return;
+      const t = (d.cell.text || []).join(' ').trim(); if (!t) return;
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(10);
+      const w = doc.getTextWidth(t), x = d.cell.x + (d.cell.width - w) / 2, y = d.cell.y + d.cell.height - 4;
+      doc.setDrawColor(0); doc.setLineWidth(0.6); doc.line(x, y, x + w, y);
+    }
+  });
+  return doc.output('blob');
+}
+
+/* ---------- downloads ---------- */
+function checkNames() {
+  const n = names();
+  if (!STATES.length) { $('dlMsg').innerHTML = '<p class="warn">Choose the report file first (step 1).</p>'; return false; }
+  if (!n.fname) { $('dlMsg').innerHTML = '<p class="warn">Please type the file name (step 2).</p>'; return false; }
+  if (!n.date) { $('dlMsg').innerHTML = '<p class="warn">Please type the session date (step 2).</p>'; return false; }
+  return true;
+}
+function downloadFull() {
+  const wb = XLSX.utils.book_new();
+  STATES.forEach(st => XLSX.utils.book_append_sheet(wb, buildSheet(buildRows(st)), st.name.slice(0, 31)));
+  const nm = names().base + '.xlsx';
+  saveWorkbook(wb, nm);
+  return nm;
+}
+function downloadState(st) {
+  const base = names().base + ' - ' + safe(st.name), rows = buildRows(st);
+  if (isExcel(st.name)) {
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, buildSheet(rows), st.name.slice(0, 31));
+    saveWorkbook(wb, base + '.xlsx');
+    return base + '.xlsx';
+  }
+  saveBlob(makePdfBlob(rows, $('grid').checked), base + '.pdf');
+  return base + '.pdf';
+}
+function showErr(err) {
+  $('dlMsg').innerHTML = '<p class="warn">Something went wrong: ' + (err && err.message ? err.message : err) + '. Please send me a screenshot of this message.</p>';
+}
+
+$('goBtn').onclick = async () => {
+  if (!checkNames()) return;
+  const picked = [...document.querySelectorAll('.stChk')].filter(c => c.checked).map(c => STATES[+c.dataset.i]);
+  const wantFull = $('optFull').checked, wantStates = $('optStates').checked && picked.length > 0;
+  if (!wantFull && !wantStates) { $('dlMsg').innerHTML = '<p class="warn">Tick "Full sheet" and/or at least one state.</p>'; return; }
+  $('goBtn').disabled = true;
+  const done = [];
+  try {
+    if (wantFull) { done.push(downloadFull()); $('dlMsg').innerHTML = '<p class="note">Downloading… ' + done.length + '</p>'; await sleep(800); }
+    if (wantStates) for (const st of picked) {
+      done.push(downloadState(st));
+      $('dlMsg').innerHTML = '<p class="note">Downloading… ' + done.length + '</p>';
+      await sleep(800);
+    }
+    $('dlMsg').innerHTML = '<p class="ok">✔ ' + done.length + ' file(s) downloaded – check your Downloads folder:</p><p class="note">' + done.join('<br>') + '</p>';
+  } catch (err) { showErr(err); }
+  $('goBtn').disabled = false;
 };
 </script>
 </body>
