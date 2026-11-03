@@ -67,7 +67,7 @@ button:disabled{background:#c5cbd3;cursor:not-allowed}
   <div class="links"><a id="selAll">Select all states</a><a id="selNone">Clear all states</a></div>
 
   <table id="stateTable"></table>
-  <label class="opt" style="font-weight:normal;font-size:14px;margin-top:12px"><input type="checkbox" id="grid" checked> Show gridlines in PDFs</label>
+  <label class="opt" style="font-weight:normal;font-size:14px;margin-top:12px"><input type="checkbox" id="grid" checked> Show borders in PDFs</label>
 
   <button class="big" id="goBtn">Download selected</button>
   <p class="note">If your browser asks <b>"Download multiple files?"</b>, click <b>Allow</b>.</p>
@@ -193,30 +193,60 @@ function saveWorkbook(wb, name) {
   const data = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
   saveBlob(new Blob([data], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), name);
 }
-function makePdfBlob(rows, grid) {
+
+/* ---------- PDF (A4 portrait, same layout as your Google Sheet) ---------- */
+function makePdfBlob(rows, borders) {
   if (!window.jspdf || !window.jspdf.jsPDF) throw new Error('PDF tool did not load – check internet and press Ctrl+F5');
   const doc = new window.jspdf.jsPDF({ unit: 'pt', format: 'a4', orientation: 'portrait' });
   if (typeof doc.autoTable !== 'function') throw new Error('PDF table tool did not load – check internet and press Ctrl+F5');
+
+  // A4 width 595pt, margins 24pt each side → 547pt of table width
+  const W = { 0: 112, 1: 212, 2: 10, 3: 213 };
   const body = rows.map((r, i) => i === 0
     ? [{ content: String(r[0]) }, { content: String(r[1]), colSpan: 3 }]
     : r.map(c => (c === '' || c == null) ? '' : String(c)));
+
   doc.autoTable({
-    body, theme: 'plain',
-    margin: { top: 30, left: 30, right: 30, bottom: 30 },
-    styles: { font: 'helvetica', fontSize: 10, cellPadding: { top: 3, bottom: 3, left: 4, right: 4 }, textColor: 20,
-              lineColor: [200, 200, 200], lineWidth: grid ? 0.5 : 0, valign: 'middle' },
-    columnStyles: { 0: { cellWidth: 45, halign: 'center' }, 1: { cellWidth: 235 }, 2: { cellWidth: 15 }, 3: { cellWidth: 240 } },
+    body,
+    theme: borders ? 'grid' : 'plain',
+    margin: { top: 28, left: 24, right: 24, bottom: 28 },
+    tableWidth: 547,
+    styles: {
+      font: 'helvetica', fontSize: 9.5, textColor: [0, 0, 0], fillColor: false,
+      cellPadding: { top: 3.5, bottom: 3.5, left: 4, right: 4 },
+      lineColor: [0, 0, 0], lineWidth: borders ? 0.5 : 0,
+      valign: 'middle', overflow: 'linebreak'
+    },
+    columnStyles: {
+      0: { cellWidth: W[0], halign: 'center' },
+      1: { cellWidth: W[1], halign: 'left' },
+      2: { cellWidth: W[2] },
+      3: { cellWidth: W[3], halign: 'left' }
+    },
     didParseCell: d => {
       if (d.section !== 'body') return;
-      if (d.row.index === 0) { d.cell.styles.fillColor = [182, 215, 168]; d.cell.styles.fontStyle = 'bold'; d.cell.styles.halign = 'center'; d.cell.styles.fontSize = 11; }
-      if (d.row.index === 1) { d.cell.styles.fontStyle = 'bold'; d.cell.styles.halign = 'center'; }
+      if (d.row.index === 0) {            // green title row
+        d.cell.styles.fillColor = [182, 215, 168];
+        d.cell.styles.fontStyle = 'bold';
+        d.cell.styles.halign = 'center';
+        d.cell.styles.fontSize = 10.5;
+        d.cell.styles.cellPadding = { top: 6, bottom: 6, left: 4, right: 4 };
+      }
+      if (d.row.index === 1) {            // headings row
+        d.cell.styles.fontStyle = 'bold';
+        d.cell.styles.halign = 'center';
+        d.cell.styles.fontSize = 10;
+        d.cell.styles.cellPadding = { top: 5, bottom: 5, left: 4, right: 4 };
+      }
     },
-    didDrawCell: d => {
+    didDrawCell: d => {                   // underline the headings, like the Excel sheet
       if (d.section !== 'body' || d.row.index !== 1) return;
       const t = (d.cell.text || []).join(' ').trim(); if (!t) return;
       doc.setFont('helvetica', 'bold'); doc.setFontSize(10);
-      const w = doc.getTextWidth(t), x = d.cell.x + (d.cell.width - w) / 2, y = d.cell.y + d.cell.height - 4;
-      doc.setDrawColor(0); doc.setLineWidth(0.6); doc.line(x, y, x + w, y);
+      const w = doc.getTextWidth(t);
+      const x = d.cell.x + (d.cell.width - w) / 2;
+      const y = d.cell.y + d.cell.height / 2 + 5;
+      doc.setDrawColor(0, 0, 0); doc.setLineWidth(0.6); doc.line(x, y, x + w, y);
     }
   });
   return doc.output('blob');
