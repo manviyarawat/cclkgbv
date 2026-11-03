@@ -2,29 +2,38 @@
 <html>
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>KGBV Session Sheet Maker</title>
 <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 <style>
 body{font-family:Arial,sans-serif;background:#f4f6fb;margin:0;padding:30px}
-.card{max-width:640px;margin:auto;background:#fff;border-radius:12px;padding:28px;box-shadow:0 2px 10px rgba(0,0,0,.08)}
+.card{max-width:680px;margin:auto;background:#fff;border-radius:12px;padding:28px;box-shadow:0 2px 10px rgba(0,0,0,.08)}
 h1{font-size:23px;margin:0 0 6px;color:#1a3c6e}
 p.sub{color:#666;margin:0 0 20px}
 label{display:block;font-weight:bold;margin:18px 0 6px}
 input[type=text]{width:100%;padding:10px;border:1px solid #ccc;border-radius:6px;font-size:15px;box-sizing:border-box}
 button{margin-top:26px;width:100%;padding:14px;font-size:17px;background:#1a73e8;color:#fff;border:0;border-radius:8px;cursor:pointer}
 button:hover{background:#155ec4}
+button.green{background:#137333}
+button.green:hover{background:#0f5c29}
 #msg{margin-top:22px}
+#stateBox{display:none;margin-top:24px;border-top:1px solid #e0e0e0;padding-top:6px}
+.chk{font-weight:normal;font-size:14px}
 table{width:100%;border-collapse:collapse;margin-top:10px;font-size:14px}
 th,td{border:1px solid #ddd;padding:6px 8px;text-align:left}
 th{background:#eef3fb}
 .warn{color:#b00020;font-size:14px}
 .ok{color:#137333;font-weight:bold;font-size:16px}
+.note{color:#5f6368;font-size:13px}
 </style>
 </head>
 <body>
 <div class="card">
   <h1>KGBV Session Sheet Maker</h1>
-  <p class="sub">Choose the session report → get the Attended / Not attended sheet for every state.</p>
+  <p class="sub">Choose the session report → get the Attended / Not attended sheet for every state, plus separate state files (Gujarat as Excel, other states as PDF).</p>
 
   <label>1. Choose the session report file (Excel)</label>
   <input type="file" id="file" accept=".xlsx,.xls">
@@ -37,17 +46,30 @@ th{background:#eef3fb}
 
   <button id="go">Make my sheet</button>
   <div id="msg"></div>
+
+  <div id="stateBox">
+    <label>4. State files (one ZIP)</label>
+    <p class="note">Gujarat → Excel, all other states → PDF. Open the ZIP after download: right-click → Extract All.</p>
+    <label class="chk"><input type="checkbox" id="grid" checked> Show gridlines in the PDFs</label>
+    <button class="green" id="stateBtn">Download state files</button>
+    <div id="stateMsg"></div>
+  </div>
 </div>
+
+<p style="text-align:center;color:#5f6368;font-size:13px;margin:24px 0 10px;font-family:Arial,sans-serif">Created by <b>Manviya Rawat</b> · <a href="index.html" style="color:#1a73e8">← All tools</a></p>
 
 <script>
 const HEAD_ATTENDED = 'KGBVs who attended session';
 const HEAD_NOT = 'KGBVs who did not attend session';
 const GREEN = 'B6D7A8';
+const EXCEL_STATES = ['gujarat'];          // these states get an Excel file; all others get a PDF
 
 const clean = s => String(s == null ? '' : s).replace(/\s+/g, ' ').trim();
 const byName = (a, b) => a.localeCompare(b, 'en', { sensitivity: 'base', numeric: true });
+const safe = s => s.replace(/[\\/:*?"<>|]/g, '');
 const msg = document.getElementById('msg');
 const warn = t => msg.innerHTML = '<p class="warn">' + t + '</p>';
+let last = null;   // result of the last "Make my sheet"
 
 const ST_TITLE = { font: { name: 'Arial', sz: 12, bold: true },
                    fill: { patternType: 'solid', fgColor: { rgb: GREEN } },
@@ -71,6 +93,12 @@ function styleSheet(ws, rowCount) {
   ws['!cols'] = [{ wch: 20 }, { wch: 48 }, { wch: 10 }, { wch: 42 }];
 }
 
+function download(blob, name) {
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name;
+  document.body.appendChild(a); a.click(); a.remove();
+}
+
+/* ---------- Make my sheet ---------- */
 document.getElementById('go').onclick = async () => {
   const f = document.getElementById('file').files[0];
   const fname = clean(document.getElementById('fname').value);
@@ -86,7 +114,7 @@ document.getElementById('go').onclick = async () => {
   catch (e) { return warn('Could not read this file. Please choose the Excel (.xlsx) report.'); }
 
   const out = XLSX.utils.book_new();
-  const summary = [], problems = [];
+  const summary = [], problems = [], states = [];
 
   wb.SheetNames.forEach(state => {
     const data = XLSX.utils.sheet_to_json(wb.Sheets[state], { header: 1, raw: false, defval: '' });
@@ -123,21 +151,85 @@ document.getElementById('go').onclick = async () => {
     const ws = XLSX.utils.aoa_to_sheet(rows);
     styleSheet(ws, rows.length);
     XLSX.utils.book_append_sheet(out, ws, state.slice(0, 31));
+    states.push({ name: state, rows, ws });
     summary.push([state, total, yes.length, no.length]);
   });
 
   if (!out.SheetNames.length) return warn('No usable data found. Is this the session report file?');
 
-  const outName = fname.replace(/[\\/:*?"<>|]/g, '') + '.xlsx';
-  XLSX.writeFile(out, outName);
+  const base = 'Session ' + safe(fname);
+  XLSX.writeFile(out, base + '.xlsx');
+  last = { base, states };
 
-  let html = '<p class="ok">✔ Done! "' + outName + '" has been downloaded (check your Downloads folder).</p>'
+  let html = '<p class="ok">✔ Done! "' + base + '.xlsx" has been downloaded (check your Downloads folder).</p>'
     + '<table><tr><th>State</th><th>Total</th><th>Attended</th><th>Not attended</th></tr>';
   summary.forEach(r => html += '<tr><td>' + r.join('</td><td>') + '</td></tr>');
   html += '</table>';
   if (problems.length) html += '<p class="warn"><b>Please check:</b><br>' + problems.join('<br>') + '</p>';
   else html += '<p class="ok">No problems found in the report.</p>';
   msg.innerHTML = html;
+  document.getElementById('stateBox').style.display = 'block';
+  document.getElementById('stateMsg').innerHTML = '';
+};
+
+/* ---------- PDF for one state ---------- */
+function makePdf(rows, grid) {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit: 'pt', format: 'a4', orientation: 'portrait' });
+  const body = rows.map((r, i) => i === 0
+    ? [{ content: String(r[0]) }, { content: String(r[1]), colSpan: 3 }]
+    : r.map(c => (c === '' || c == null) ? '' : String(c)));
+
+  doc.autoTable({
+    body,
+    theme: 'plain',
+    margin: { top: 30, left: 30, right: 30, bottom: 30 },
+    styles: { font: 'helvetica', fontSize: 10, cellPadding: { top: 3, bottom: 3, left: 4, right: 4 }, textColor: 20,
+              lineColor: [200, 200, 200], lineWidth: grid ? 0.5 : 0, valign: 'middle' },
+    columnStyles: { 0: { cellWidth: 45, halign: 'center' }, 1: { cellWidth: 235 }, 2: { cellWidth: 15 }, 3: { cellWidth: 240 } },
+    didParseCell: d => {
+      if (d.section !== 'body') return;
+      if (d.row.index === 0) { d.cell.styles.fillColor = [182, 215, 168]; d.cell.styles.fontStyle = 'bold'; d.cell.styles.halign = 'center'; d.cell.styles.fontSize = 11; }
+      if (d.row.index === 1) { d.cell.styles.fontStyle = 'bold'; d.cell.styles.halign = 'center'; }
+    },
+    didDrawCell: d => {   // underline the 2nd-row headings, like the Excel sheet
+      if (d.section !== 'body' || d.row.index !== 1) return;
+      const t = (d.cell.text || []).join(' ').trim();
+      if (!t) return;
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(10);
+      const w = doc.getTextWidth(t), x = d.cell.x + (d.cell.width - w) / 2, y = d.cell.y + d.cell.height - 4;
+      doc.setDrawColor(0); doc.setLineWidth(0.6); doc.line(x, y, x + w, y);
+    }
+  });
+  return doc.output('arraybuffer');
+}
+
+/* ---------- Download state files (ZIP) ---------- */
+document.getElementById('stateBtn').onclick = async () => {
+  const sm = document.getElementById('stateMsg');
+  if (!last) { sm.innerHTML = '<p class="warn">Click "Make my sheet" first.</p>'; return; }
+  if (!window.jspdf || typeof JSZip === 'undefined') { sm.innerHTML = '<p class="warn">Page did not load fully. Check your internet and refresh the page.</p>'; return; }
+  sm.innerHTML = '<p class="note">Making state files…</p>';
+  try {
+    const zip = new JSZip(), grid = document.getElementById('grid').checked, made = [];
+    for (const st of last.states) {
+      const nm = safe(last.base + ' - ' + st.name);
+      if (EXCEL_STATES.includes(st.name.trim().toLowerCase())) {
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, st.ws, st.name.slice(0, 31));
+        zip.file(nm + '.xlsx', XLSX.write(wb, { bookType: 'xlsx', type: 'array' }));
+        made.push(nm + '.xlsx');
+      } else {
+        zip.file(nm + '.pdf', makePdf(st.rows, grid));
+        made.push(nm + '.pdf');
+      }
+    }
+    const blob = await zip.generateAsync({ type: 'blob' });
+    download(blob, last.base + ' - State files.zip');
+    sm.innerHTML = '<p class="ok">✔ Downloaded "' + last.base + ' - State files.zip" with ' + made.length + ' files:</p><p class="note">' + made.join('<br>') + '</p>';
+  } catch (e) {
+    sm.innerHTML = '<p class="warn">Something went wrong: ' + (e && e.message ? e.message : e) + '. Please send me a screenshot of this message.</p>';
+  }
 };
 </script>
 </body>
