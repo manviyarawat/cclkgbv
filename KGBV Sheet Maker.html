@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>KGBV Session Sheet Maker</title>
+<script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
+<style>
+body{font-family:Arial,sans-serif;background:#f4f6fb;margin:0;padding:30px}
+.card{max-width:640px;margin:auto;background:#fff;border-radius:12px;padding:28px;box-shadow:0 2px 10px rgba(0,0,0,.08)}
+h1{font-size:23px;margin:0 0 6px;color:#1a3c6e}
+p.sub{color:#666;margin:0 0 20px}
+label{display:block;font-weight:bold;margin:18px 0 6px}
+input[type=text]{width:100%;padding:10px;border:1px solid #ccc;border-radius:6px;font-size:15px;box-sizing:border-box}
+button{margin-top:26px;width:100%;padding:14px;font-size:17px;background:#1a73e8;color:#fff;border:0;border-radius:8px;cursor:pointer}
+button:hover{background:#155ec4}
+#msg{margin-top:22px}
+table{width:100%;border-collapse:collapse;margin-top:10px;font-size:14px}
+th,td{border:1px solid #ddd;padding:6px 8px;text-align:left}
+th{background:#eef3fb}
+.warn{color:#b00020;font-size:14px}
+.ok{color:#137333;font-weight:bold;font-size:16px}
+</style>
+</head>
+<body>
+<div class="card">
+  <h1>KGBV Session Sheet Maker</h1>
+  <p class="sub">Choose the session report → get the Attended / Not attended sheet for every state.</p>
+
+  <label>1. Choose the session report file (Excel)</label>
+  <input type="file" id="file" accept=".xlsx,.xls">
+
+  <label>2. New file name</label>
+  <input type="text" id="fname" placeholder="e.g. 26. Diwali Special - Flexagons">
+
+  <label>3. Session date</label>
+  <input type="text" id="date" placeholder="e.g. October 30 2026">
+
+  <button id="go">Make my sheet</button>
+  <div id="msg"></div>
+</div>
+
+<script>
+const HEAD_ATTENDED = 'KGBVs who attended session';
+const HEAD_NOT = 'KGBVs who did not attend session';
+const GREEN = 'B6D7A8';
+
+const clean = s => String(s == null ? '' : s).replace(/\s+/g, ' ').trim();
+const byName = (a, b) => a.localeCompare(b, 'en', { sensitivity: 'base', numeric: true });
+const msg = document.getElementById('msg');
+const warn = t => msg.innerHTML = '<p class="warn">' + t + '</p>';
+
+const ST_TITLE = { font: { name: 'Arial', sz: 12, bold: true },
+                   fill: { patternType: 'solid', fgColor: { rgb: GREEN } },
+                   alignment: { horizontal: 'center', vertical: 'center' } };
+const ST_HEAD  = { font: { name: 'Arial', sz: 12, bold: true, underline: true },
+                   alignment: { horizontal: 'center', vertical: 'center' } };
+const ST_NUM   = { font: { name: 'Arial', sz: 12 }, alignment: { horizontal: 'center' } };
+const ST_TEXT  = { font: { name: 'Arial', sz: 12 }, alignment: { horizontal: 'left' } };
+
+function styleSheet(ws, rowCount) {
+  for (let r = 0; r < rowCount; r++) {
+    for (let c = 0; c < 4; c++) {
+      const addr = XLSX.utils.encode_cell({ r, c });
+      if (!ws[addr]) ws[addr] = { t: 's', v: '' };
+      if (r === 0) ws[addr].s = ST_TITLE;
+      else if (r === 1) ws[addr].s = ST_HEAD;
+      else ws[addr].s = (c === 0) ? ST_NUM : ST_TEXT;
+    }
+  }
+  ws['!merges'] = [{ s: { r: 0, c: 1 }, e: { r: 0, c: 3 } }];   // B1:D1 merged
+  ws['!cols'] = [{ wch: 20 }, { wch: 48 }, { wch: 10 }, { wch: 42 }];
+}
+
+document.getElementById('go').onclick = async () => {
+  const f = document.getElementById('file').files[0];
+  const fname = clean(document.getElementById('fname').value);
+  const date = clean(document.getElementById('date').value);
+  if (typeof XLSX === 'undefined') return warn('Page did not load fully. Check your internet and refresh the page.');
+  if (!f) return warn('Please choose the report file first (step 1).');
+  if (!fname) return warn('Please type the new file name (step 2).');
+  if (!date) return warn('Please type the session date (step 3).');
+
+  const title = fname.replace(/^\s*\d+\s*[.\-)]\s*/, '');
+  let wb;
+  try { wb = XLSX.read(new Uint8Array(await f.arrayBuffer()), { type: 'array' }); }
+  catch (e) { return warn('Could not read this file. Please choose the Excel (.xlsx) report.'); }
+
+  const out = XLSX.utils.book_new();
+  const summary = [], problems = [];
+
+  wb.SheetNames.forEach(state => {
+    const data = XLSX.utils.sheet_to_json(wb.Sheets[state], { header: 1, raw: false, defval: '' });
+    const h = data.findIndex(r => r.some(c => clean(c).toLowerCase() === 'district'));
+    if (h < 0) { problems.push(state + ': no "District" column, tab skipped'); return; }
+    const head = data[h].map(c => clean(c).toLowerCase());
+    const d = head.indexOf('district'), s = head.indexOf('school name'), p = head.indexOf('participated');
+    if (s < 0 || p < 0) { problems.push(state + ': "School Name" or "Participated" column missing, tab skipped'); return; }
+
+    const yes = [], no = [], seen = new Set();
+    data.slice(h + 1).forEach(r => {
+      if (!clean(r[s])) return;
+      if (!clean(r[d])) problems.push(state + ': school "' + clean(r[s]) + '" has no district');
+      const name = clean(r[d] + ' ' + r[s]);
+      const key = name.toLowerCase();
+      if (seen.has(key)) problems.push(state + ': ' + name + ' appears more than once in the report');
+      seen.add(key);
+      const v = clean(r[p]).toLowerCase();
+      if (v === 'yes') yes.push(name);
+      else {
+        no.push(name);
+        if (v !== 'no') problems.push(state + ': ' + name + ' has Participated = "' + clean(r[p]) + '" (put in Not attended)');
+      }
+    });
+    yes.sort(byName); no.sort(byName);
+
+    const total = yes.length + no.length;
+    const rows = [
+      ['Total Schools- ' + total, 'Date : ' + date + ', Session - ' + title, '', ''],
+      ['Sr. No', HEAD_ATTENDED, '', HEAD_NOT]
+    ];
+    for (let i = 0; i < Math.max(yes.length, no.length); i++) rows.push([i + 1, yes[i] || '', '', no[i] || '']);
+
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    styleSheet(ws, rows.length);
+    XLSX.utils.book_append_sheet(out, ws, state.slice(0, 31));
+    summary.push([state, total, yes.length, no.length]);
+  });
+
+  if (!out.SheetNames.length) return warn('No usable data found. Is this the session report file?');
+
+  const outName = fname.replace(/[\\/:*?"<>|]/g, '') + '.xlsx';
+  XLSX.writeFile(out, outName);
+
+  let html = '<p class="ok">✔ Done! "' + outName + '" has been downloaded (check your Downloads folder).</p>'
+    + '<table><tr><th>State</th><th>Total</th><th>Attended</th><th>Not attended</th></tr>';
+  summary.forEach(r => html += '<tr><td>' + r.join('</td><td>') + '</td></tr>');
+  html += '</table>';
+  if (problems.length) html += '<p class="warn"><b>Please check:</b><br>' + problems.join('<br>') + '</p>';
+  else html += '<p class="ok">No problems found in the report.</p>';
+  msg.innerHTML = html;
+};
+</script>
+</body>
+</html>
