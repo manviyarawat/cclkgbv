@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Tracker Rows Maker</title>
+<script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
+<style>
+body{font-family:Arial,sans-serif;background:#f4f6fb;margin:0;padding:24px;color:#202124}
+.wrap{max-width:1100px;margin:auto}
+.card{background:#fff;border-radius:12px;padding:22px 26px;margin-bottom:18px;box-shadow:0 2px 10px rgba(0,0,0,.07)}
+h1{font-size:24px;margin:0 0 4px;color:#1a3c6e}
+h2{font-size:18px;margin:0 0 12px;color:#1a3c6e}
+.step{display:inline-block;background:#1a73e8;color:#fff;border-radius:50%;width:26px;height:26px;text-align:center;line-height:26px;margin-right:8px;font-size:14px}
+.help{background:#eef3fb;border-left:4px solid #1a73e8;padding:10px 14px;border-radius:6px;font-size:14px;color:#3c4043}
+.help ol{margin:6px 0 0 18px;padding:0}
+label{display:block;font-weight:bold;font-size:14px;margin:12px 0 5px}
+input[type=text],input[type=number],select{width:100%;padding:9px;border:1px solid #ccc;border-radius:6px;font-size:14px;box-sizing:border-box}
+.row{display:flex;gap:12px}.row>div{flex:1}
+button{padding:12px 18px;font-size:16px;background:#1a73e8;color:#fff;border:0;border-radius:8px;cursor:pointer;margin-top:14px}
+.tot{display:grid;grid-template-columns:repeat(8,1fr);gap:8px}
+.tot div{font-size:13px}
+.warn{color:#b00020;font-size:14px}
+.ok{color:#137333;font-weight:bold}
+.scroll{overflow-x:auto}
+table{border-collapse:collapse;font-size:12px;white-space:nowrap}
+th,td{border:1px solid #ddd;padding:4px 6px}
+th{background:#1155cc;color:#fff;vertical-align:bottom}
+tr.sub th{background:#fff;color:#202124;font-weight:normal}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<div class="card">
+  <h1>Tracker Rows Maker</h1>
+  <div class="help"><b>How to use (every session):</b>
+    <ol>
+      <li>Download the state-wise export (ccl-state-wise-....xlsx) and choose it in step 1.</li>
+      <li>Pick the session, and type Sr.No, Responsibility and Facilitator (step 2).</li>
+      <li>Check the preview in step 3, then click <b>Copy rows</b>.</li>
+      <li>In your Google tracker sheet, click the <b>Sr.No cell of the "Total" row</b> for this session and press <b>Ctrl+V</b>. All 9 rows fill in at once.</li>
+      <li>Fill "Actual activity photos" and "Actual challenge question updated" by hand, as before.</li>
+    </ol>
+    <p style="margin:8px 0 0">Notes: numbers for past sessions keep growing as late forms and uploads arrive, so a file downloaded later shows slightly higher numbers – that is normal. "Had some" material is calculated as: Attendance form sent − Had all − Had none.</p>
+  </div>
+</div>
+
+<div class="card">
+  <h2><span class="step">1</span>Choose the export file</h2>
+  <input type="file" id="file" accept=".xlsx,.xls,.csv">
+  <div id="fileMsg"></div>
+</div>
+
+<div class="card">
+  <h2><span class="step">2</span>Session details</h2>
+  <label>Session</label><select id="sessSel"></select>
+  <div class="row">
+    <div><label>Sr.No</label><input type="text" id="sr"></div>
+    <div><label>Responsibility of session</label><input type="text" id="resp"></div>
+    <div><label>Facilitator</label><input type="text" id="fac"></div>
+  </div>
+  <div class="row">
+    <div><label>Session name</label><input type="text" id="sname"></div>
+    <div><label>Date</label><input type="text" id="sdate"></div>
+  </div>
+  <label>Total no. of KGBV per state (edit if needed – the page remembers your numbers)</label>
+  <div class="tot" id="totBox"></div>
+  <label style="font-weight:normal"><input type="checkbox" id="pctOn"> Also fill the Percentage columns (leave unticked to keep them empty, like your sheet)</label>
+  <div id="totWarn"></div>
+</div>
+
+<div class="card">
+  <h2><span class="step">3</span>Check and copy the rows</h2>
+  <label style="font-weight:normal"><input type="checkbox" id="headOn"> Also copy the 2 heading rows (only for a fresh/empty sheet)</label>
+  <button id="copyBtn">Copy rows</button> <span id="copyMsg"></span>
+  <textarea id="clip" style="position:absolute;left:-9999px"></textarea>
+  <div class="scroll" id="preview" style="margin-top:14px"></div>
+</div>
+
+</div>
+<script>
+// [export state name, name in your tracker, default total]
+const STATES = [
+  ['Gujarat','Gujarat',210], ['Himachal Pradesh','Himachal',14], ['Madhya Pradesh','MP',598],
+  ['Maharashtra','Maharashtra',43], ['Punjab','Punjab',26], ['Rajasthan','Rajasthan',228],
+  ['Tripura','Tripura',14], ['Uttar Pradesh','UP',746]
+];
+const ZOOM = ['Zoom 0-15','Zoom 15-30','Zoom 30-45','Zoom 45-60','Zoom >60'];
+const YT   = ['YT 0-15','YT 15-30','YT 30-45','YT 45-60','YT >60'];
+const FIELDS = { watched:'Watched', part:'Participated', p1:'Attendance form score 0-1', p2:'Attendance form score >1',
+  ws:'Worksheet sent', w1:'Worksheet score <=50%', w2:'Worksheet score >50%', mu:'Media uploads', ms:'Media schools',
+  cu:'Challenge uploads', cs:'Challenge schools', zl:'Zoom viewers', yv:'YouTube viewers',
+  st:'Student count total', ma:'Material had all', mn:'Material had none', af:'Attendance form sent', reg:'Registered schools' };
+
+// Your sheet's 2 heading rows: [top heading, sub-heading] – one entry per column (51 columns)
+const HEADINGS = [
+  ['Sr.No',''],['Responsibility of session',''],['Session Name',''],['Date',''],['Facilitator',''],['State',''],
+  ['Totall no of KGBV',''],['No. of schools attended',''],['Percentage',''],['No. of schools participated',''],['Percentage',''],
+  ['Poll Score','<=1'],['Percentage',''],['Poll Score','>1'],['Percentage',''],
+  ['No. of worksheets submitted',''],['Percentage',''],['Worksheet score','<=50%'],['Percentage',''],['Worksheet score','>50%'],['Percentage',''],
+  ['Total Photo updated by schools',''],['Actual activity photos',''],['No of schools uploaded photo',''],['Percentage',''],
+  ['Total challenges question updates',''],['Actual challenge question updated',''],['No. of schools uploaded challenge question',''],['Percentage',''],
+  ['Np. of schools - watchtime on Zoom','0-15 min'],['','15-30 min'],['','30-45 min'],['','45-60 min'],['','>60 min'],
+  ['Np. of schools - watchtime on youtube','0-15 min'],['','15-30 min'],['','30-45 min'],['','45-60 min'],['','>60 min'],
+  ['Percentage',''],['No. of schools who watched Zoom live',''],['Percentage',''],['YT live',''],['Percentage',''],
+  ['YT recorded',''],['Percentage',''],['No. of students watching',''],['Percentage',''],
+  ['Availability of material','Had'],['','Did not have'],['','Had some']
+];
+
+const $ = id => document.getElementById(id);
+const norm = s => String(s == null ? '' : s).replace(/\s+/g, ' ').trim().toLowerCase();
+const esc = s => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;');
+let data = [], cols = {};
+
+/* totals (remembered) */
+let saved = {};
+try { saved = JSON.parse(localStorage.getItem('kgbvTotals') || '{}'); } catch (e) {}
+STATES.forEach(([, label, def], k) => {
+  const d = document.createElement('div');
+  d.innerHTML = label + '<input type="number" id="t' + k + '">';
+  $('totBox').appendChild(d);
+  $('t' + k).value = saved[label] != null ? saved[label] : def;
+  $('t' + k).addEventListener('input', () => {
+    const o = {}; STATES.forEach(([, l], j) => o[l] = Number($('t' + j).value) || 0);
+    try { localStorage.setItem('kgbvTotals', JSON.stringify(o)); } catch (e) {}
+    build();
+  });
+});
+try { $('resp').value = localStorage.getItem('kgbvResp') || ''; } catch (e) {}
+$('resp').addEventListener('input', () => { try { localStorage.setItem('kgbvResp', $('resp').value); } catch (e) {} build(); });
+['sr','fac','sname','sdate'].forEach(id => $(id).addEventListener('input', build));
+$('pctOn').addEventListener('change', build);
+
+/* read file */
+$('file').onchange = async e => {
+  const f = e.target.files[0]; if (!f) return;
+  if (typeof XLSX === 'undefined') { $('fileMsg').innerHTML = '<p class="warn">Page did not load fully. Check internet and refresh.</p>'; return; }
+  try {
+    const wb = XLSX.read(new Uint8Array(await f.arrayBuffer()), { type: 'array' });
+    const name = wb.SheetNames.find(n => /state/i.test(n)) || wb.SheetNames[0];
+    const aoa = XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1, defval: '' });
+    const h = aoa[0].map(norm);
+    cols = {}; h.forEach((x, i) => cols[x] = i);
+    const need = ['state', 'session'].concat(Object.values(FIELDS).map(norm), ZOOM.map(norm), YT.map(norm));
+    const missing = need.filter(n => cols[n] == null);
+    data = aoa.slice(1).filter(r => String(r[cols['state']] || '').trim());
+    const sessions = [...new Set(data.map(r => String(r[cols['session']]).trim()))];
+    $('sessSel').innerHTML = '';
+    sessions.forEach(s => { const o = document.createElement('option'); o.value = s; o.textContent = s; $('sessSel').appendChild(o); });
+    $('fileMsg').innerHTML = '<p class="ok">✔ File loaded: ' + sessions.length + ' session(s) found.</p>'
+      + (missing.length ? '<p class="warn">These columns were not found in the file (their cells will be blank): ' + missing.join(', ') + '</p>' : '');
+    fillSessionInfo(); build();
+  } catch (err) { $('fileMsg').innerHTML = '<p class="warn">Could not read this file. Please choose the state-wise export (.xlsx).</p>'; }
+};
+$('sessSel').onchange = () => { fillSessionInfo(); build(); };
+
+function fillSessionInfo() {
+  const s = $('sessSel').value;
+  $('sname').value = s.replace(/^\s*\d+\s*[.\-)]\s*/, '');
+  const r = data.find(x => String(x[cols['session']]).trim() === s);
+  const t = r && cols['session time'] != null ? String(r[cols['session time']]) : '';
+  const m = t.match(/(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})/);
+  $('sdate').value = m ? m[2] + ' ' + m[1] + ', ' + m[3] : t;
+}
+
+const num = (r, name) => {
+  const i = cols[norm(name)];
+  if (i == null || r[i] === '' || r[i] == null) return '';
+  const v = Number(String(r[i]).replace(/,/g, ''));
+  return isNaN(v) ? '' : v;
+};
+function readState(r) {
+  const d = {};
+  Object.entries(FIELDS).forEach(([k, n]) => d[k] = num(r, n));
+  d.z = ZOOM.map(n => num(r, n)); d.y = YT.map(n => num(r, n));
+  return d;
+}
+function addInto(t, d) {
+  const add = (a, b) => (a === '' && b === '') ? '' : (Number(a) || 0) + (Number(b) || 0);
+  Object.keys(FIELDS).forEach(k => t[k] = add(t[k], d[k]));
+  t.z = t.z.map((v, i) => add(v, d.z[i])); t.y = t.y.map((v, i) => add(v, d.y[i]));
+}
+function hadSome(d) {
+  if (!d || d.af === '' || d.ma === '' || d.mn === '') return '';
+  const v = d.af - d.ma - d.mn;
+  return v >= 0 ? v : '';
+}
+function makeRow(isTotal, label, G, d) {
+  const on = $('pctOn').checked;
+  const pct = n => (on && G && n !== '' && n != null) ? (n / G * 100).toFixed(1) + '%' : '';
+  const v = k => d ? d[k] : '';
+  const head = isTotal ? [$('sr').value, $('resp').value, $('sname').value, $('sdate').value, $('fac').value] : ['', '', '', '', ''];
+  return head.concat([label, G,
+    v('watched'), pct(v('watched')), v('part'), pct(v('part')),
+    v('p1'), pct(v('p1')), v('p2'), pct(v('p2')),
+    v('ws'), pct(v('ws')), v('w1'), pct(v('w1')), v('w2'), pct(v('w2')),
+    v('mu'), '', v('ms'), pct(v('ms')),
+    v('cu'), '', v('cs'), pct(v('cs')),
+    ...(d ? d.z : ['', '', '', '', '']), ...(d ? d.y : ['', '', '', '', '']), '',
+    v('zl'), pct(v('zl')),
+    v('yv'), pct(v('yv')),      // YT live = all YouTube viewers (same as your sheet)
+    '', '',                     // YT recorded + % left empty (same as your sheet)
+    v('st'), '',
+    v('ma'), v('mn'), hadSome(d)]);   // Material: Had / Did not have / Had some
+}
+
+let rowsOut = [];
+function build() {
+  if (!data.length) return;
+  const s = $('sessSel').value;
+  const rows = data.filter(r => String(r[cols['session']]).trim() === s);
+  const total = { z: ['', '', '', '', ''], y: ['', '', '', '', ''] };
+  Object.keys(FIELDS).forEach(k => total[k] = '');
+  const stateRows = [], warns = [];
+  let G = 0;
+  STATES.forEach(([exp, label], k) => {
+    const g = Number($('t' + k).value) || 0; G += g;
+    const r = rows.find(x => norm(x[cols['state']]) === norm(exp));
+    const d = r ? readState(r) : null;
+    if (d) {
+      addInto(total, d);
+      if (d.reg !== '' && d.reg !== g) warns.push(label + ': your total is ' + g + ', export says ' + d.reg + ' registered');
+      if (d.af !== '' && d.ma !== '' && d.mn !== '' && d.af - d.ma - d.mn < 0) warns.push(label + ': "Had some" material could not be calculated (numbers don\'t add up) – left blank');
+    }
+    stateRows.push(makeRow(false, label, g, d));
+  });
+  const known = STATES.map(s => norm(s[0]));
+  rows.forEach(r => { if (!known.includes(norm(r[cols['state']]))) warns.push('State "' + r[cols['state']] + '" is in the export but not in your tracker – not included'); });
+  rowsOut = [makeRow(true, 'Total', G, total)].concat(stateRows);
+  $('totWarn').innerHTML = warns.length ? '<p class="warn"><b>Please check:</b><br>' + warns.join('<br>') + '</p>' : '';
+
+  let html = '<table><tr>' + HEADINGS.map(h => '<th>' + esc(h[0]) + '</th>').join('') + '</tr>'
+           + '<tr class="sub">' + HEADINGS.map(h => '<th>' + esc(h[1]) + '</th>').join('') + '</tr>';
+  rowsOut.forEach(r => html += '<tr>' + r.map(c => '<td>' + esc(c) + '</td>').join('') + '</tr>');
+  $('preview').innerHTML = html + '</table>';
+}
+
+$('copyBtn').onclick = () => {
+  if (!rowsOut.length) { $('copyMsg').innerHTML = '<span class="warn">Choose the export file first.</span>'; return; }
+  let all = rowsOut;
+  if ($('headOn').checked) all = [HEADINGS.map(h => h[0]), HEADINGS.map(h => h[1])].concat(rowsOut);
+  const tsv = all.map(r => r.map(c => (c == null ? '' : String(c))).join('\t')).join('\n');
+  const ta = $('clip'); ta.value = tsv; ta.select();
+  let ok = false; try { ok = document.execCommand('copy'); } catch (e) {}
+  if (navigator.clipboard) navigator.clipboard.writeText(tsv).catch(() => {});
+  const where = $('headOn').checked ? 'click cell A1 of an empty sheet' : 'click the Sr.No cell of the Total row';
+  $('copyMsg').innerHTML = ok ? '<span class="ok">✔ Copied! Now ' + where + ' and press Ctrl+V.</span>'
+                              : '<span class="warn">Copy did not work – please try again.</span>';
+};
+</script>
+</body>
+</html>

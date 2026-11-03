@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Session Report Maker</title>
+<script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/docx@7.8.2/build/index.js"></script>
+<style>
+body{font-family:Arial,sans-serif;background:#f4f6fb;margin:0;padding:24px;color:#202124}
+.wrap{max-width:860px;margin:auto}
+.card{background:#fff;border-radius:12px;padding:22px 26px;margin-bottom:18px;box-shadow:0 2px 10px rgba(0,0,0,.07)}
+h1{font-size:24px;margin:0 0 4px;color:#1a3c6e}
+h2{font-size:18px;margin:0 0 12px;color:#1a3c6e}
+.step{display:inline-block;background:#1a73e8;color:#fff;border-radius:50%;width:26px;height:26px;text-align:center;line-height:26px;margin-right:8px;font-size:14px}
+.help{background:#eef3fb;border-left:4px solid #1a73e8;padding:10px 14px;border-radius:6px;font-size:14px;color:#3c4043;margin-bottom:12px}
+.help ol{margin:6px 0 0 18px;padding:0}
+label{display:block;font-weight:bold;font-size:14px;margin:12px 0 5px}
+input[type=text],input[type=number],input[type=date],textarea,select{width:100%;padding:9px;border:1px solid #ccc;border-radius:6px;font-size:14px;box-sizing:border-box;font-family:Arial,sans-serif}
+textarea{min-height:90px}
+.row{display:flex;gap:12px}.row>div{flex:1}
+button{padding:10px 16px;font-size:15px;background:#1a73e8;color:#fff;border:0;border-radius:8px;cursor:pointer;margin-top:12px}
+button.light{background:#e8f0fe;color:#1a73e8}
+button.red{background:#fce8e6;color:#c5221f}
+button.small{padding:6px 10px;font-size:13px;margin-top:6px}
+button.big{width:100%;padding:15px;font-size:18px}
+.box{border:1px solid #e0e0e0;border-radius:8px;padding:12px;margin:10px 0}
+.note{font-size:13px;color:#5f6368}
+.warn{color:#b00020;font-size:14px}
+.ok{color:#137333;font-weight:bold}
+.thumb img{height:90px;margin-top:6px;border:1px solid #ddd}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<div class="card">
+  <h1>Session Report Maker</h1>
+  <div class="help"><b>How to use (every session):</b>
+    <ol>
+      <li>Fill steps 1 to 6 from top to bottom. Your typing is saved automatically.</li>
+      <li>Step 2: write rough notes → click <b>Copy request for Claude</b> → paste in a Claude chat → paste Claude's three sections into the boxes.</li>
+      <li>Add images (snippets and poll charts) last – images are not auto-saved.</li>
+      <li>Click <b>Make my report</b>. A Word file downloads.</li>
+      <li>Upload it to Google Drive → double-click → <b>Open with Google Docs</b>.</li>
+      <li>For the next session, click <b>Start new report</b> at the bottom.</li>
+    </ol>
+  </div>
+</div>
+
+<div class="card">
+  <h2><span class="step">1</span>Session details</h2>
+  <div class="row">
+    <div><label>Name of the facilitator</label><input type="text" id="fac" placeholder="e.g. Nisha"></div>
+    <div><label>Name of the session</label><input type="text" id="sess" placeholder="e.g. Conductivity Detector"></div>
+  </div>
+  <div class="row">
+    <div><label>Session type</label><input type="text" id="stype" value="Science"></div>
+    <div><label>Date</label><input type="date" id="sdate"></div>
+    <div><label>Time</label><input type="text" id="stime" value="5:30 pm to 6:30pm"></div>
+  </div>
+  <div class="row">
+    <div><label>Zoom participants</label><input type="number" id="zoom" min="0"></div>
+    <div><label>YouTube participants</label><input type="number" id="yt" min="0"></div>
+    <div><label>No. of camera open</label><input type="number" id="cam" min="0"></div>
+  </div>
+  <p class="note">Total participants joined: <b id="tot">0</b> (Zoom + YouTube, calculated automatically)</p>
+</div>
+
+<div class="card">
+  <h2><span class="step">2</span>Points of review</h2>
+  <label>Your rough notes (any language)</label>
+  <textarea id="notes" placeholder="- started with kite magnet&#10;- activity 1: pins on magnet&#10;- less interaction, mostly one-way"></textarea>
+  <button class="light" id="copyPrompt">Copy request for Claude</button> <span id="copyMsg"></span>
+  <textarea id="promptBox" style="display:none;margin-top:8px" readonly></textarea>
+  <label>Concept clarity</label><textarea id="concept"></textarea>
+  <label>Flow of the session (leave an empty line between paragraphs)</label><textarea id="flow" style="min-height:170px"></textarea>
+  <label>Suggestions for improvement (one per line – numbering is added automatically)</label><textarea id="sugg"></textarea>
+</div>
+
+<div class="card">
+  <h2><span class="step">3</span>Snippets from the session (up to 5 images)</h2>
+  <p class="note">Add one image per slot, in the order you want them in the report. Leave extra slots empty.</p>
+  <div id="snipSlots"></div>
+</div>
+
+<div class="card">
+  <h2><span class="step">4</span>Homework responses</h2>
+  <div class="help">Quick way: choose the <b>state-wise export</b> (ccl-state-wise-....xlsx), pick the session and click <b>Fill homework</b>. The count is the total "Worksheet sent". Or just type it below.</div>
+  <input type="file" id="expFile" accept=".xlsx,.xls">
+  <div class="row" id="expBox" style="display:none">
+    <div><label>Session in the export</label><select id="expSess"></select></div>
+    <div><button class="light" id="fillHw" style="margin-top:34px">Fill homework</button></div>
+  </div>
+  <div id="expMsg"></div>
+  <div class="row">
+    <div><label>Number of homework responses</label><input type="number" id="hwCount" min="0"></div>
+    <div><label>As on date</label><input type="text" id="hwDate" placeholder="e.g. Oct 31, 2026"></div>
+  </div>
+  <label>Other points (one per line)</label>
+  <textarea id="hwExtra">most of the submissions by three states only UP, Gujarat and MP.</textarea>
+</div>
+
+<div class="card">
+  <h2><span class="step">5</span>Poll questions</h2>
+  <p class="note">For each question: type the % answered correctly and choose its chart image (screenshot).</p>
+  <div id="polls"></div>
+  <button class="light" id="addPoll">+ Add poll question</button>
+</div>
+
+<div class="card">
+  <h2><span class="step">6</span>Feedback from the facilitator</h2>
+  <textarea id="fb" placeholder="Paste the facilitator's feedback here (leave empty if none)"></textarea>
+</div>
+
+<div class="card">
+  <button class="big" id="make">Make my report</button>
+  <div id="msg"></div>
+  <button class="red" id="clearAll">Start new report (clears everything)</button>
+</div>
+
+</div>
+<script>
+const $ = id => document.getElementById(id);
+const clean = s => String(s == null ? '' : s).replace(/\s+/g, ' ').trim();
+const SAVE_IDS = ['fac','sess','stype','sdate','stime','zoom','yt','cam','notes','concept','flow','sugg','hwCount','hwDate','hwExtra','fb'];
+const MAX_SNIPS = 5;
+
+/* ---------- auto-save ---------- */
+function saveAll() {
+  const o = {}; SAVE_IDS.forEach(id => o[id] = $(id).value);
+  o.polls = [...document.querySelectorAll('.pollPct')].map(i => i.value);
+  try { localStorage.setItem('sessionReportDraft', JSON.stringify(o)); } catch (e) {}
+}
+function loadAll() {
+  let o = null;
+  try { o = JSON.parse(localStorage.getItem('sessionReportDraft') || 'null'); } catch (e) {}
+  if (o) SAVE_IDS.forEach(id => { if (o[id] != null) $(id).value = o[id]; });
+  const pcts = o && o.polls && o.polls.length ? o.polls : ['', '', ''];
+  pcts.forEach(p => addPoll(p));
+  updateTotal();
+}
+SAVE_IDS.forEach(id => $(id).addEventListener('input', () => { if (id === 'zoom' || id === 'yt') updateTotal(); saveAll(); }));
+function updateTotal() { $('tot').textContent = (Number($('zoom').value) || 0) + (Number($('yt').value) || 0); }
+
+/* ---------- step 2: request for Claude ---------- */
+$('copyPrompt').onclick = () => {
+  const t = 'Please write three sections of my internal session review report from my rough notes below.\n'
+    + 'Style: clear, simple English, third person, past tense, like an observer reviewing an online science session for KGBV schools.\n'
+    + '1) "Concept clarity": one paragraph.\n'
+    + '2) "Flow of the session": 2 to 5 paragraphs describing the session in order.\n'
+    + '3) "Suggestions for improvement": 2 or 3 points, one per line, without numbers.\n'
+    + 'Give only the three sections, each with its heading.\n\n'
+    + 'Session: ' + $('sess').value + '\nFacilitator: ' + $('fac').value + '\n\nMy notes:\n' + $('notes').value;
+  const box = $('promptBox'); box.value = t; box.style.display = 'block'; box.select();
+  let done = false; try { done = document.execCommand('copy'); } catch (e) {}
+  if (navigator.clipboard) navigator.clipboard.writeText(t).catch(() => {});
+  $('copyMsg').innerHTML = done ? '<span class="ok">✔ Copied! Paste it in Claude.</span>' : '<span class="warn">Select the text below and press Ctrl+C.</span>';
+};
+
+/* ---------- step 3: 5 snippet slots ---------- */
+for (let i = 1; i <= MAX_SNIPS; i++) {
+  const div = document.createElement('div'); div.className = 'box';
+  div.innerHTML = '<b>Snippet ' + i + '</b><input type="file" class="snipImg" accept="image/*" style="display:block;margin-top:6px"><div class="thumb"></div>'
+    + '<button class="red small" type="button">Remove</button>';
+  const inp = div.querySelector('.snipImg'), th = div.querySelector('.thumb');
+  inp.onchange = () => { th.innerHTML = ''; const f = inp.files[0]; if (f) { const im = document.createElement('img'); im.src = URL.createObjectURL(f); th.appendChild(im); } };
+  div.querySelector('button').onclick = () => { inp.value = ''; th.innerHTML = ''; };
+  $('snipSlots').appendChild(div);
+}
+
+/* ---------- step 4: homework from export ---------- */
+let expRows = [], expCols = {}, expAsOf = '';
+const SHORT = { 'uttar pradesh': 'UP', 'madhya pradesh': 'MP', 'himachal pradesh': 'Himachal' };
+$('expFile').onchange = async e => {
+  const f = e.target.files[0]; if (!f) return;
+  try {
+    const wb = XLSX.read(new Uint8Array(await f.arrayBuffer()), { type: 'array' });
+    const name = wb.SheetNames.find(n => /state/i.test(n)) || wb.SheetNames[0];
+    const aoa = XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1, defval: '' });
+    expCols = {}; aoa[0].forEach((h, i) => expCols[clean(h).toLowerCase()] = i);
+    if (expCols['worksheet sent'] == null || expCols['session'] == null || expCols['state'] == null) throw 0;
+    expRows = aoa.slice(1).filter(r => clean(r[expCols['state']]));
+    expAsOf = '';
+    const defName = wb.SheetNames.find(n => /definition/i.test(n));
+    if (defName) {
+      const d = XLSX.utils.sheet_to_json(wb.Sheets[defName], { header: 1, defval: '' });
+      const r = d.find(x => /numbers as of/i.test(String(x[0])));
+      const m = r && String(r[1]).match(/(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})/);
+      if (m) expAsOf = m[2] + ' ' + m[1] + ', ' + m[3];
+    }
+    const sessions = [...new Set(expRows.map(r => clean(r[expCols['session']])))];
+    $('expSess').innerHTML = '';
+    sessions.forEach(s => { const o = document.createElement('option'); o.value = s; o.textContent = s; $('expSess').appendChild(o); });
+    const want = clean($('sess').value).toLowerCase();
+    const match = sessions.find(s => want && s.toLowerCase().includes(want));
+    if (match) $('expSess').value = match;
+    $('expBox').style.display = 'flex';
+    $('expMsg').innerHTML = '';
+  } catch (err) { $('expMsg').innerHTML = '<p class="warn">Could not read this file. Please choose the state-wise export.</p>'; }
+};
+$('fillHw').onclick = () => {
+  const s = $('expSess').value;
+  const rows = expRows.filter(r => clean(r[expCols['session']]) === s);
+  const per = rows.map(r => ({ st: clean(r[expCols['state']]), n: Number(r[expCols['worksheet sent']]) || 0 }));
+  const total = per.reduce((a, b) => a + b.n, 0);
+  const top = per.filter(p => p.n > 0).sort((a, b) => b.n - a.n).slice(0, 3).map(p => SHORT[p.st.toLowerCase()] || p.st);
+  $('hwCount').value = total;
+  if (expAsOf) $('hwDate').value = expAsOf;
+  if (top.length === 3) $('hwExtra').value = 'most of the submissions by three states only ' + top[0] + ', ' + top[1] + ' and ' + top[2] + '.';
+  $('expMsg').innerHTML = '<p class="ok">✔ Homework filled: ' + total + ' responses.</p>';
+  saveAll();
+};
+
+/* ---------- step 5: polls ---------- */
+function renumber() { document.querySelectorAll('.poll .pnum').forEach((s, i) => s.textContent = 'Poll Question ' + (i + 1)); }
+function addPoll(pct) {
+  const div = document.createElement('div'); div.className = 'box poll';
+  div.innerHTML = '<b class="pnum"></b>'
+    + '<div class="row"><div><label>% answered correctly</label><input type="number" class="pollPct" min="0" max="100"></div>'
+    + '<div><label>Chart image</label><input type="file" class="pollImg" accept="image/*"></div></div>'
+    + '<div class="thumb"></div><button class="red small" type="button">Remove this question</button>';
+  div.querySelector('.pollPct').value = pct || '';
+  div.querySelector('.pollPct').addEventListener('input', saveAll);
+  div.querySelector('.pollImg').onchange = e => {
+    const t = div.querySelector('.thumb'); t.innerHTML = '';
+    const f = e.target.files[0]; if (f) { const im = document.createElement('img'); im.src = URL.createObjectURL(f); t.appendChild(im); }
+  };
+  div.querySelector('button').onclick = () => { div.remove(); renumber(); saveAll(); };
+  $('polls').appendChild(div); renumber();
+}
+$('addPoll').onclick = () => { addPoll(''); saveAll(); };
+
+/* ---------- clear ---------- */
+$('clearAll').onclick = () => {
+  if (!confirm('Clear everything and start a new report?')) return;
+  try { localStorage.removeItem('sessionReportDraft'); } catch (e) {}
+  location.reload();
+};
+
+/* ---------- make the Word file ---------- */
+function dateStr() { const v = $('sdate').value; if (!v) return ''; const [y, m, d] = v.split('-'); return d + '/' + m + '/' + y; }
+function imgSize(file) {
+  return new Promise(res => { const im = new Image(); im.onload = () => res({ w: im.naturalWidth, h: im.naturalHeight }); im.onerror = () => res({ w: 1000, h: 560 }); im.src = URL.createObjectURL(file); });
+}
+const lines = t => String(t || '').split(/\n/).map(s => s.trim()).filter(Boolean);
+const paras = t => String(t || '').split(/\n\s*\n/).map(s => s.replace(/\s*\n\s*/g, ' ').trim()).filter(Boolean);
+
+$('make').onclick = async () => {
+  const msg = $('msg');
+  if (typeof docx === 'undefined') { msg.innerHTML = '<p class="warn">Page did not load fully. Check your internet and refresh the page.</p>'; return; }
+  if (!$('sess').value || !$('sdate').value) { msg.innerHTML = '<p class="warn">Please fill at least the session name and date (step 1).</p>'; return; }
+  msg.innerHTML = '<p class="note">Making your report…</p>';
+  try {
+    const { Document, Packer, Paragraph, TextRun, ImageRun, AlignmentType, LevelFormat, TabStopType, Tab, UnderlineType } = docx;
+    const L115 = 276, L100 = 240;                                                   // 1.15 and single line spacing
+    const A   = (text, o = {}) => new TextRun({ text, font: 'Arial', size: 22, ...o });              // Arial 11
+    const AB  = (text, o = {}) => A(text, { bold: true, ...o });
+    const TNR = (text, o = {}) => new TextRun({ text, font: 'Times New Roman', size: 24, ...o });    // Times 12
+    const TAB = () => new TextRun({ children: [new Tab()], font: 'Arial', size: 22 });
+    const P   = (runs, o = {}) => new Paragraph({ children: runs, spacing: { before: 0, after: 0, line: L115 }, ...o });
+    const BLANK = () => P([A('')]);
+    const UL = { type: UnderlineType.SINGLE };
+    const SERIF_LABEL = text => P([new TextRun({ text, bold: true, font: 'Times New Roman', size: 26 })], { spacing: { before: 0, after: 160, line: L115 } });
+    const NUM = text => new Paragraph({ numbering: { reference: 'num', level: 0 }, spacing: { before: 0, after: 0, line: L100 }, children: [TNR(text)] });
+    const BUL = text => new Paragraph({ numbering: { reference: 'bul', level: 0 }, spacing: { before: 0, after: 0, line: L100 }, children: [TNR(text)] });
+    const IMG = async f => {
+      const s = await imgSize(f);
+      let w = 624, h = Math.round(s.h * w / s.w);                         // full text width = 6.5 inches
+      if (h > 860) { h = 860; w = Math.round(s.w * h / s.h); }            // never taller than one page
+      return new Paragraph({ alignment: AlignmentType.CENTER, spacing: { before: 0, after: 0 },
+        children: [new ImageRun({ data: new Uint8Array(await f.arrayBuffer()), transformation: { width: w, height: h } })] });
+    };
+    const ds = dateStr(), kids = [];
+
+    /* ----- page 1 header ----- */
+    kids.push(P([AB('Internal Report (' + ds + ')', { size: 32, underline: UL })], { alignment: AlignmentType.CENTER }));
+    kids.push(BLANK());
+    kids.push(P([AB('Session Review', { size: 26, underline: UL })], { alignment: AlignmentType.CENTER }));
+    kids.push(BLANK());
+    kids.push(BLANK());
+    kids.push(P([AB('Name of the facilitator- '), A($('fac').value)]));
+    kids.push(P([AB('Name of the session- '), A($('sess').value)]));
+    kids.push(BLANK());
+    kids.push(P([AB('Session type: '), A($('stype').value), TAB(), AB('Date: '), A(ds), TAB(), AB('Time: '), A($('stime').value)],
+      { tabStops: [{ type: TabStopType.LEFT, position: 3380 }, { type: TabStopType.LEFT, position: 6850 }] }));
+    kids.push(BLANK());
+    kids.push(P([AB('No. of participants joined- '), A($('tot').textContent), TAB(),
+                 AB('Zoom'), A(': ' + ($('zoom').value || 0) + ' & YouTube: ' + ($('yt').value || 0)), TAB(),
+                 AB('No. of camera open: '), A(String($('cam').value || 0))],
+      { tabStops: [{ type: TabStopType.LEFT, position: 3300 }, { type: TabStopType.LEFT, position: 6500 }] }));
+    kids.push(BLANK());
+
+    /* ----- points of review ----- */
+    kids.push(P([AB('Points of review', { size: 30 })]));
+    kids.push(BLANK());
+    kids.push(SERIF_LABEL('Concept clarity:'));
+    paras($('concept').value).forEach((p, i, arr) => { kids.push(P([A(p)])); if (i < arr.length - 1) kids.push(BLANK()); });
+    kids.push(BLANK());
+    kids.push(SERIF_LABEL('Flow of the session:'));
+    paras($('flow').value).forEach((p, i, arr) => { kids.push(P([A(p)])); if (i < arr.length - 1) kids.push(BLANK()); });
+    kids.push(BLANK());
+    kids.push(SERIF_LABEL('Suggestions for improvement:'));
+    lines($('sugg').value).forEach(l => kids.push(NUM(l.replace(/^\s*\d+\s*[\).:-]?\s*/, ''))));
+    kids.push(BLANK());
+    kids.push(BLANK());
+
+    /* ----- snippets ----- */
+    kids.push(P([AB('Snippets from the session:', { size: 32 })]));
+    kids.push(BLANK());
+    for (const inp of document.querySelectorAll('.snipImg')) { const f = inp.files[0]; if (f) kids.push(await IMG(f)); }
+    kids.push(BLANK());
+    kids.push(BLANK());
+
+    /* ----- homework ----- */
+    kids.push(P([AB('Homework responses:', { size: 26 })]));
+    if ($('hwCount').value) kids.push(BUL($('hwCount').value + ' on ' + $('hwDate').value + '.'));
+    lines($('hwExtra').value).forEach(l => kids.push(BUL(l)));
+    kids.push(BLANK());
+    kids.push(BLANK());
+
+    /* ----- polls ----- */
+    let qn = 0;
+    for (const p of document.querySelectorAll('.poll')) {
+      const pct = p.querySelector('.pollPct').value;
+      const f = p.querySelector('.pollImg').files[0];
+      if (!pct && !f) continue;
+      qn++;
+      const lead = qn === 1 ? 'Poll Question 1:[ ' : 'Poll Question ' + qn + ': [ ';   // same as your reports
+      kids.push(P([A(lead), AB((pct || '') + '% answered correctly'), A(']')]));
+      kids.push(BLANK());
+      if (f) kids.push(await IMG(f));
+      kids.push(BLANK());
+      kids.push(BLANK());
+    }
+
+    /* ----- feedback ----- */
+    kids.push(BLANK());
+    kids.push(P([AB('Feedback from the facilitator:', { size: 26 })]));
+    kids.push(BLANK());
+    paras($('fb').value).forEach((p, i, arr) => { kids.push(P([A(p)])); if (i < arr.length - 1) kids.push(BLANK()); });
+
+    const doc = new Document({
+      styles: { default: { document: { run: { font: 'Arial', size: 22 }, paragraph: { spacing: { line: L115 } } } } },
+      numbering: { config: [
+        { reference: 'bul', levels: [{ level: 0, format: LevelFormat.BULLET, text: '\u25CF', alignment: AlignmentType.LEFT,
+            style: { paragraph: { indent: { left: 576, hanging: 504 } }, run: { font: 'Arial', size: 20 } } }] },
+        { reference: 'num', levels: [{ level: 0, format: LevelFormat.DECIMAL, text: '%1)', alignment: AlignmentType.LEFT,
+            style: { paragraph: { indent: { left: 720, hanging: 360 } }, run: { font: 'Times New Roman', size: 24 } } }] }
+      ] },
+      sections: [{ properties: { page: {
+        size: { width: 12240, height: 15840 },                                     // US Letter, like your reports
+        margin: { top: 1440, bottom: 1440, left: 1440, right: 1440 } } },          // 1 inch margins
+        children: kids }]
+    });
+    const blob = await Packer.toBlob(doc);
+    const name = ('Internal Report (' + ds.replace(/\//g, '-') + ') - ' + $('sess').value).replace(/[\\/:*?"<>|]/g, '') + '.docx';
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); a.remove();
+    const missing = [];
+    if (![...document.querySelectorAll('.snipImg')].some(i => i.files[0])) missing.push('no snippet images');
+    if (!qn) missing.push('no poll questions');
+    if (!$('concept').value.trim()) missing.push('Concept clarity is empty');
+    msg.innerHTML = '<p class="ok">✔ Done! "' + name + '" has been downloaded. Upload it to Google Drive and open with Google Docs.</p>'
+      + (missing.length ? '<p class="warn">Note: ' + missing.join(', ') + '.</p>' : '');
+  } catch (err) {
+    msg.innerHTML = '<p class="warn">Something went wrong while making the file: ' + (err && err.message ? err.message : err) + '. Please send me a screenshot of this message.</p>';
+  }
+};
+
+loadAll();
+</script>
+</body>
+</html>
